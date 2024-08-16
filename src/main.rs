@@ -1,3 +1,4 @@
+
 mod framebuffer;
 mod maze;
 mod player;
@@ -5,7 +6,7 @@ mod caster;
 mod texture;
 use crate::caster::{cast_ray, Intersect, Orientation}; // Importar Orientation
 use gilrs::{Gilrs, Button, Event, EventType, Axis};
-use minifb::{Window, WindowOptions, Key, MouseMode};
+use minifb::{Window, WindowOptions, Key};
 use nalgebra_glm::Vec2;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
@@ -76,36 +77,87 @@ fn dibujar_celdas(
         }
     }
 }
-fn render_minimapa(framebuffer: &mut Framebuffer, player: &Player, x: usize, y: usize, escala: f32) {
+fn render2d(framebuffer: &mut Framebuffer, player: &Player) {
     let maze = load_maze("./maze.txt");
-    let tamaño_block = (20.0 * escala) as usize; // Escala ajustada para el minimapa
+    let tamaño_block = (framebuffer.width / maze[0].len()) as usize;
 
     for row in 0..maze.len() {
         for col in 0..maze[row].len() {
             dibujar_celdas(
                 framebuffer,
-                x + col * tamaño_block,
-                y + row * tamaño_block,
+                col * tamaño_block,
+                row * tamaño_block,
                 tamaño_block,
                 maze[row][col],
-            )
+            );
         }
     }
 
-    framebuffer.set_current_color(0xFFFFFF); // Color del jugador en el minimapa
-    let jugador_x = x + (player.pos.x * escala) as usize;
-    let jugador_y = y + (player.pos.y * escala) as usize;
-    let tamaño_jugador = (5.0 * escala) as usize; // Aumentar el tamaño del jugador en el minimapa
+    // Dibujar la posición del jugador en el mapa 2D como un triángulo (flecha)
+    framebuffer.set_current_color(0xFF0000); // Color rojo para la flecha del jugador
+    let jugador_x = ((player.pos.x / 100.0) * tamaño_block as f32) as isize;
+    let jugador_y = ((player.pos.y / 100.0) * tamaño_block as f32) as isize;
 
-    // Dibujar el jugador como un rectángulo para mayor visibilidad
-    for dx in 0..tamaño_jugador {
-        for dy in 0..tamaño_jugador {
-            if jugador_x + dx < framebuffer.width && jugador_y + dy < framebuffer.height {
-                framebuffer.point(jugador_x + dx, jugador_y + dy);
-            }
-        }
-    }
+    let longitud_flecha = 15.0; // Longitud de la flecha
+    let ancho_flecha = 10.0; // Ancho de la base del triángulo
+
+    // Calcula los tres vértices del triángulo
+    let punta_x = (jugador_x as f32 + player.a.cos() * longitud_flecha) as isize;
+    let punta_y = (jugador_y as f32 + player.a.sin() * longitud_flecha) as isize;
+
+    let base_x1 = (jugador_x as f32 + player.a.sin() * -ancho_flecha / 2.0) as isize;
+    let base_y1 = (jugador_y as f32 - player.a.cos() * -ancho_flecha / 2.0) as isize;
+
+    let base_x2 = (jugador_x as f32 + player.a.sin() * ancho_flecha / 2.0) as isize;
+    let base_y2 = (jugador_y as f32 - player.a.cos() * ancho_flecha / 2.0) as isize;
+
+    // Dibujar el triángulo que representa al jugador
+    framebuffer.triangle(punta_x, punta_y, base_x1, base_y1, base_x2, base_y2);
 }
+
+fn render_minimapa(framebuffer: &mut Framebuffer, player: &Player, escala: f32) {
+    let maze = load_maze("./maze.txt");
+    let tamaño_block = (20.0 * escala) as usize; // Escala ajustada para el minimapa
+
+    // Posición del minimapa en la esquina superior derecha
+    let x_offset = framebuffer.width - (maze[0].len() * tamaño_block) - 20; // 20 píxeles de margen derecho
+    let y_offset = 20; // 20 píxeles de margen superior
+
+    for row in 0..maze.len() {
+        for col in 0..maze[row].len() {
+            dibujar_celdas(
+                framebuffer,
+                x_offset + col * tamaño_block,
+                y_offset + row * tamaño_block,
+                tamaño_block,
+                maze[row][col],
+            );
+        }
+    }
+
+    // Ajustar las coordenadas del jugador según la escala y la posición del minimapa
+    framebuffer.set_current_color(0xFF0000); // Color rojo para la flecha del jugador en el minimapa
+    let jugador_x = (x_offset as f32 + ((player.pos.x / 100.0) * tamaño_block as f32)) as isize;
+    let jugador_y = (y_offset as f32 + ((player.pos.y / 100.0) * tamaño_block as f32)) as isize;
+
+    let longitud_flecha = 10.0; // Longitud de la flecha en el minimapa
+    let ancho_flecha = 7.0; // Ancho de la base del triángulo en el minimapa
+
+    // Calcula los tres vértices del triángulo
+    let punta_x = (jugador_x as f32 + player.a.cos() * longitud_flecha) as isize;
+    let punta_y = (jugador_y as f32 + player.a.sin() * longitud_flecha) as isize;
+
+    let base_x1 = (jugador_x as f32 + player.a.sin() * -ancho_flecha / 2.0) as isize;
+    let base_y1 = (jugador_y as f32 - player.a.cos() * -ancho_flecha / 2.0) as isize;
+
+    let base_x2 = (jugador_x as f32 + player.a.sin() * ancho_flecha / 2.0) as isize;
+    let base_y2 = (jugador_y as f32 - player.a.cos() * ancho_flecha / 2.0) as isize;
+
+    // Dibujar el triángulo que representa al jugador en el minimapa
+    framebuffer.triangle(punta_x, punta_y, base_x1, base_y1, base_x2, base_y2);
+}
+
+
 
 fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &texture::Texture, floor_texture: &texture::Texture) {
     let maze = load_maze("./maze.txt");
@@ -205,8 +257,27 @@ fn main() {
         let tiempo_inicial = Instant::now();
         framebuffer.clear();
 
-        // Capturar la posición del mouse
-        if let Some((mouse_x, _)) = window.get_mouse_pos(MouseMode::Pass) {
+        // Manejar entrada desde el mando
+        while let Some(Event { event, .. }) = gilrs.next_event() {
+            match event {
+                EventType::ButtonPressed(Button::South, _) => {
+                    // Acción del botón (ej: salto, disparo, etc.)
+                }
+                EventType::AxisChanged(Axis::LeftStickX, value, _) => {
+                    // Movimiento horizontal con el stick izquierdo
+                    player.a += value * 0.05; // Ajusta la sensibilidad según sea necesario
+                }
+                EventType::AxisChanged(Axis::LeftStickY, value, _) => {
+                    let direction = Vec2::new(player.a.cos(), player.a.sin());
+                    let move_speed = if value > 0.0 { 5.0 } else { -5.0 }; // Cambia según la dirección del eje
+                    player.move_player(direction, move_speed, &maze);
+                }
+                _ => {}
+            }
+        }
+
+        // Capturar la posición del mouse y rotar la cámara
+        if let Some((mouse_x, _)) = window.get_mouse_pos(minifb::MouseMode::Pass) {
             let sensitivity = 0.005;  // Ajusta la sensibilidad según sea necesario
 
             // Detectar si el mouse está en la zona sensible izquierda
@@ -220,13 +291,17 @@ fn main() {
             }
         }
 
-        // Lógica de juego existente para renderizar y manejar entradas
+        // Manejar entrada desde el teclado
         eventos_jugador(&window, &mut player, &maze);
 
+        // Cambiar la vista según el estado actual
         if vista_3d {
             render3d(&mut framebuffer, &player, &stone_texture, &floor_texture);
+            if mostrar_minimapa {
+                render_minimapa(&mut framebuffer, &player, 0.2);
+            }
         } else {
-            render_minimapa(&mut framebuffer, &player, 10, 10, 2.0);
+            render2d(&mut framebuffer, &player);
         }
 
         if window.is_key_down(Key::Y) {
@@ -237,10 +312,6 @@ fn main() {
         if window.is_key_down(Key::M) {
             mostrar_minimapa = !mostrar_minimapa;
             std::thread::sleep(Duration::from_millis(200));
-        }
-
-        if vista_3d && mostrar_minimapa {
-            render_minimapa(&mut framebuffer, &player, 10, 10, 0.2);
         }
 
         let duracion = tiempo_inicial.elapsed();
