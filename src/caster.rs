@@ -22,7 +22,7 @@ pub fn cast_ray(
     block_size: usize,
     draw_line: bool,
 ) -> Intersect {
-    const STEP_SIZE: f32 = 5.0;
+    const STEP_SIZE: f32 = 0.5;
     let mut distance = 0.0;
 
     framebuffer.set_current_color(0xFFDDDD);
