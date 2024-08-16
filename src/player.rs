@@ -1,3 +1,4 @@
+
 use nalgebra_glm::Vec2;
 use std::f32::consts::PI;
 use minifb::{Window, Key};
