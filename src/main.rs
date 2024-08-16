@@ -4,8 +4,8 @@ mod player;
 mod caster;
 mod texture;
 use crate::caster::{cast_ray, Intersect, Orientation}; // Importar Orientation
-
-use minifb::{Window, WindowOptions, Key};
+use gilrs::{Gilrs, Button, Event, EventType, Axis};
+use minifb::{Window, WindowOptions, Key, MouseMode};
 use nalgebra_glm::Vec2;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
@@ -123,43 +123,16 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         }
     }
 
-    // Dibujar el suelo con textura
-    for y in hh as usize..framebuffer.height {
-        let perspectiva = hh / (y as f32 - hh);
-        let ray_dir_x0 = player.a - player.fov / 2.0;
-        let ray_dir_x1 = player.a + player.fov / 2.0;
-
-        let step_x = perspectiva * (ray_dir_x1.cos() - ray_dir_x0.cos()) / framebuffer.width as f32;
-        let step_y = perspectiva * (ray_dir_x1.sin() - ray_dir_x0.sin()) / framebuffer.width as f32;
-
-        let mut floor_x = player.pos.x + perspectiva * ray_dir_x0.cos();
-        let mut floor_y = player.pos.y + perspectiva * ray_dir_x0.sin();
-
-        for x in 0..framebuffer.width {
-            let texture_x = (floor_x as usize % floor_texture.width as usize);
-            let texture_y = (floor_y as usize % floor_texture.height as usize);
-
-            let pixel_index = texture_y * floor_texture.width as usize + texture_x;
-            let color = floor_texture.get_pixel(pixel_index);
-
-            framebuffer.set_current_color(color);
-            framebuffer.point(x, y);
-
-            floor_x += step_x;
-            floor_y += step_y;
-        }
-    }
-
-    // Renderizar las paredes (igual que antes)
+    // Renderizar las paredes
     for i in 0..num_rays {
         let ray_actual = i as f32 / num_rays as f32;
         let mut a = player.a - (player.fov / 2.0) + (player.fov * ray_actual);
         a = a.rem_euclid(2.0 * PI); 
 
-        let interseccion = cast_ray(framebuffer, &maze, &player, a, tamaño_block, true);
+        let interseccion = cast_ray(framebuffer, &maze, &player, a, tamaño_block, false);
 
         let mut distancia_a_pared = interseccion.distance;
-        distancia_a_pared *= (player.a - a).cos();
+        distancia_a_pared *= (player.a - a).cos(); // Corrección de la distancia
 
         if distancia_a_pared == 0.0 {
             distancia_a_pared = 0.1; 
@@ -171,17 +144,20 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         let stake_t = (hh - altura_pared / 2.0) as i32;
         let stake_b = (hh + altura_pared / 2.0) as i32;
 
+        // Suavizar el renderizado con interpolación lineal
+        let line_height = stake_b - stake_t;
+        let texture_step = wall_texture.height as f32 / line_height as f32;
+
         for y in stake_t.max(0) as usize..stake_b.min(framebuffer.height as i32) as usize {
-            let distancia_desde_arriba = y as f32 - (hh - altura_pared / 2.0);
-            let proporcion_y = distancia_desde_arriba / altura_pared;
-            let texture_y = (proporcion_y * wall_texture.height as f32) as usize;
+            let proporcion_y = (y as f32 - stake_t as f32) * texture_step;
+            let texture_y = proporcion_y as usize % wall_texture.height as usize;
 
             let texture_x = match interseccion.orientation {
                 Orientation::Vertical => interseccion.point.y as usize % tamaño_block,
                 Orientation::Horizontal => interseccion.point.x as usize % tamaño_block,
             };
 
-            let pixel_index = (texture_y % wall_texture.height as usize) * wall_texture.width as usize + (texture_x % wall_texture.width as usize);
+            let pixel_index = texture_y * wall_texture.width as usize + (texture_x % wall_texture.width as usize);
             let color = wall_texture.get_pixel(pixel_index);
 
             framebuffer.set_current_color(color);
@@ -189,10 +165,12 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         }
     }
 }
-
 fn main() {
+    let mut gilrs = Gilrs::new().expect("Failed to initialize gilrs"); // Inicializa Gilrs para manejar el mando
+
     let ancho_ventana = 1300;
     let altura_ventana = 900;
+    let margen_sensible = 100.0;
     let ancho_framebuffer = 1300;
     let altura_framebuffer = 900;
     let frame_delay = Duration::from_millis(16);
@@ -207,12 +185,12 @@ fn main() {
     )
     .unwrap();
 
-    // Cargar la textura de piedra
     let stone_texture = load_texture("assets/paper.jpg").expect("No se pudo cargar la textura de piedra");
     let floor_texture = load_texture("assets/gris1.jpg").expect("No se pudo cargar la textura del suelo");
 
-
     framebuffer.set_background_color(0x000000);
+
+    let maze = load_maze("./maze.txt");
 
     let mut player = Player {
         pos: Vec2::new(150.0, 150.0),
@@ -227,29 +205,42 @@ fn main() {
         let tiempo_inicial = Instant::now();
         framebuffer.clear();
 
-        eventos_jugador(&window, &mut player);
+        // Capturar la posición del mouse
+        if let Some((mouse_x, _)) = window.get_mouse_pos(MouseMode::Pass) {
+            let sensitivity = 0.005;  // Ajusta la sensibilidad según sea necesario
+
+            // Detectar si el mouse está en la zona sensible izquierda
+            if mouse_x < margen_sensible {
+                player.a -= (margen_sensible - mouse_x) * sensitivity;
+            }
+
+            // Detectar si el mouse está en la zona sensible derecha
+            if mouse_x > (ancho_ventana as f32 - margen_sensible) {
+                player.a += (mouse_x - (ancho_ventana as f32 - margen_sensible)) * sensitivity;
+            }
+        }
+
+        // Lógica de juego existente para renderizar y manejar entradas
+        eventos_jugador(&window, &mut player, &maze);
 
         if vista_3d {
             render3d(&mut framebuffer, &player, &stone_texture, &floor_texture);
         } else {
-            render_minimapa(&mut framebuffer, &player, 10, 10, 2.0); // Escala ajustada para vista completa del minimapa
+            render_minimapa(&mut framebuffer, &player, 10, 10, 2.0);
         }
 
-        // Alternar entre la vista 3D y 2D
         if window.is_key_down(Key::Y) {
             vista_3d = !vista_3d;
-            std::thread::sleep(Duration::from_millis(200)); // Pausa para evitar cambios rápidos
+            std::thread::sleep(Duration::from_millis(200));
         }
 
-        // Mostrar/ocultar minimapa mientras se está en vista 3D
         if window.is_key_down(Key::M) {
             mostrar_minimapa = !mostrar_minimapa;
-            std::thread::sleep(Duration::from_millis(200)); // Pausa para evitar cambios rápidos
+            std::thread::sleep(Duration::from_millis(200));
         }
 
         if vista_3d && mostrar_minimapa {
-            render_minimapa(&mut framebuffer, &player, 10, 10, 0.2
-            ); // Minimapa en 3D
+            render_minimapa(&mut framebuffer, &player, 10, 10, 0.2);
         }
 
         let duracion = tiempo_inicial.elapsed();
