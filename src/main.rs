@@ -14,6 +14,9 @@ use crate::framebuffer::Framebuffer;
 use crate::maze::load_maze;
 use crate::player::{Player, eventos_jugador};
 use texture::load_texture;
+use rodio::{Decoder,Source, OutputStream, Sink};
+use std::fs::File;
+use std::io::BufReader;
 
 const FUENTE_NUMEROS: [[u8; 5]; 10] = [
     [0b01110, 0b10001, 0b10001, 0b10001, 0b01110],
@@ -65,18 +68,23 @@ fn dibujar_celdas(
     tamaño_block: usize,
     celda: char,
 ) {
-    // Asegúrate de que esta función dibuje las celdas no vacías
-    if celda != ' ' {
-        framebuffer.set_current_color(0x87CEFA); // Color de las celdas del laberinto
-        for x in xo..xo + tamaño_block {
-            for y in yo..yo + tamaño_block {
-                if x < framebuffer.width && y < framebuffer.height {
-                    framebuffer.point(x, y);
-                }
+    // Cambia el color de acuerdo al carácter de la celda
+    match celda {
+        'E' => framebuffer.set_current_color(0x00FF00), // Verde para la salida (meta)
+        ' ' => return, // No dibujar nada si es un espacio vacío
+        _   => framebuffer.set_current_color(0x87CEFA), // Azul claro para las paredes normales
+    }
+
+    // Dibuja la celda
+    for x in xo..xo + tamaño_block {
+        for y in yo..yo + tamaño_block {
+            if x < framebuffer.width && y < framebuffer.height {
+                framebuffer.point(x, y);
             }
         }
     }
 }
+
 fn render2d(framebuffer: &mut Framebuffer, player: &Player) {
     let maze = load_maze("./maze.txt");
     let tamaño_block = (framebuffer.width / maze[0].len()) as usize;
@@ -217,7 +225,56 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         }
     }
 }
+
+fn mostrar_pantalla_exito(framebuffer: &mut Framebuffer) {
+    framebuffer.clear(); // Limpiar la pantalla
+
+    framebuffer.set_current_color(0x00FF00); // Color verde para la pantalla de éxito
+
+    let mensaje = "¡Has alcanzado la meta!";
+    let x = framebuffer.width / 2 - (mensaje.len() * 6) / 2; // Centrar el mensaje
+    let y = framebuffer.height / 2;
+
+    for (i, ch) in mensaje.chars().enumerate() {
+        // En lugar de intentar convertir el carácter a dígito, simplemente dibuja píxeles para representar letras.
+        let offset_x = x + i * 6;
+        dibujar_letra(framebuffer, offset_x, y, ch);
+    }
+}
+
+fn dibujar_letra(framebuffer: &mut Framebuffer, x: usize, y: usize, letra: char) {
+    // Aquí definirías una fuente básica para las letras. Puedes usar patrones simples
+    // para dibujar cada letra. A continuación, te doy un ejemplo muy básico.
+
+    let patrones = match letra {
+        '¡' => [0b00001, 0b00000, 0b00001, 0b00001, 0b00001],  // Ejemplo de "¡"
+        'H' => [0b10001, 0b10001, 0b11111, 0b10001, 0b10001],  // Ejemplo de "H"
+        'a' => [0b01110, 0b00001, 0b01111, 0b10001, 0b01111],  // Ejemplo de "a"
+        // Define los patrones para el resto de las letras...
+        _ => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000],    // Espacio u otros caracteres no definidos
+    };
+
+    for (row, bits) in patrones.iter().enumerate() {
+        for col in 0..5 {
+            if bits & (1 << (4 - col)) != 0 {
+                framebuffer.point(x + col, y + row);
+            }
+        }
+    }
+}
 fn main() {
+    // Inicializa el stream de audio
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+
+    // Carga el archivo de música
+    let file = BufReader::new(File::open("assets/Enchanted.wav").unwrap());
+    let source = Decoder::new(file).unwrap().repeat_infinite();
+
+    // Reproduce la música en bucle
+    sink.append(source);
+    sink.play();
+
     let mut gilrs = Gilrs::new().expect("Failed to initialize gilrs"); // Inicializa Gilrs para manejar el mando
 
     let ancho_ventana = 1300;
@@ -252,66 +309,73 @@ fn main() {
 
     let mut vista_3d = true;
     let mut mostrar_minimapa = false;
+    let mut exito = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let tiempo_inicial = Instant::now();
         framebuffer.clear();
 
-        // Manejar entrada desde el mando
-        while let Some(Event { event, .. }) = gilrs.next_event() {
-            match event {
-                EventType::ButtonPressed(Button::South, _) => {
-                    // Acción del botón (ej: salto, disparo, etc.)
+        if !exito {
+            // Manejar entrada desde el mando
+            while let Some(Event { event, .. }) = gilrs.next_event() {
+                match event {
+                    EventType::ButtonPressed(Button::South, _) => {
+                        // Acción del botón (ej: salto, disparo, etc.)
+                    }
+                    EventType::AxisChanged(Axis::LeftStickX, value, _) => {
+                        // Movimiento horizontal con el stick izquierdo
+                        player.a += value * 0.05; // Ajusta la sensibilidad según sea necesario
+                    }
+                    EventType::AxisChanged(Axis::LeftStickY, value, _) => {
+                        let direction = Vec2::new(player.a.cos(), player.a.sin());
+                        let move_speed = if value > 0.0 { 5.0 } else { -5.0 }; // Cambia según la dirección del eje
+                        if player.move_player(direction, move_speed, &maze) {
+                            exito = true;
+                        }
+                    }
+                    _ => {}
                 }
-                EventType::AxisChanged(Axis::LeftStickX, value, _) => {
-                    // Movimiento horizontal con el stick izquierdo
-                    player.a += value * 0.05; // Ajusta la sensibilidad según sea necesario
-                }
-                EventType::AxisChanged(Axis::LeftStickY, value, _) => {
-                    let direction = Vec2::new(player.a.cos(), player.a.sin());
-                    let move_speed = if value > 0.0 { 5.0 } else { -5.0 }; // Cambia según la dirección del eje
-                    player.move_player(direction, move_speed, &maze);
-                }
-                _ => {}
-            }
-        }
-
-        // Capturar la posición del mouse y rotar la cámara
-        if let Some((mouse_x, _)) = window.get_mouse_pos(minifb::MouseMode::Pass) {
-            let sensitivity = 0.005;  // Ajusta la sensibilidad según sea necesario
-
-            // Detectar si el mouse está en la zona sensible izquierda
-            if mouse_x < margen_sensible {
-                player.a -= (margen_sensible - mouse_x) * sensitivity;
             }
 
-            // Detectar si el mouse está en la zona sensible derecha
-            if mouse_x > (ancho_ventana as f32 - margen_sensible) {
-                player.a += (mouse_x - (ancho_ventana as f32 - margen_sensible)) * sensitivity;
+            // Capturar la posición del mouse y rotar la cámara
+            if let Some((mouse_x, _)) = window.get_mouse_pos(minifb::MouseMode::Pass) {
+                let sensitivity = 0.005;  // Ajusta la sensibilidad según sea necesario
+
+                // Detectar si el mouse está en la zona sensible izquierda
+                if mouse_x < margen_sensible {
+                    player.a -= (margen_sensible - mouse_x) * sensitivity;
+                }
+
+                // Detectar si el mouse está en la zona sensible derecha
+                if mouse_x > (ancho_ventana as f32 - margen_sensible) {
+                    player.a += (mouse_x - (ancho_ventana as f32 - margen_sensible)) * sensitivity;
+                }
             }
-        }
 
-        // Manejar entrada desde el teclado
-        eventos_jugador(&window, &mut player, &maze);
+            // Manejar entrada desde el teclado
+            eventos_jugador(&window, &mut player, &maze);
 
-        // Cambiar la vista según el estado actual
-        if vista_3d {
-            render3d(&mut framebuffer, &player, &stone_texture, &floor_texture);
-            if mostrar_minimapa {
-                render_minimapa(&mut framebuffer, &player, 0.2);
+            // Cambiar la vista según el estado actual
+            if vista_3d {
+                render3d(&mut framebuffer, &player, &stone_texture, &floor_texture);
+                if mostrar_minimapa {
+                    render_minimapa(&mut framebuffer, &player, 0.2);
+                }
+            } else {
+                render2d(&mut framebuffer, &player);
+            }
+
+            if window.is_key_down(Key::Y) {
+                vista_3d = !vista_3d;
+                std::thread::sleep(Duration::from_millis(200));
+            }
+
+            if window.is_key_down(Key::M) {
+                mostrar_minimapa = !mostrar_minimapa;
+                std::thread::sleep(Duration::from_millis(200));
             }
         } else {
-            render2d(&mut framebuffer, &player);
-        }
-
-        if window.is_key_down(Key::Y) {
-            vista_3d = !vista_3d;
-            std::thread::sleep(Duration::from_millis(200));
-        }
-
-        if window.is_key_down(Key::M) {
-            mostrar_minimapa = !mostrar_minimapa;
-            std::thread::sleep(Duration::from_millis(200));
+            mostrar_pantalla_exito(&mut framebuffer);
         }
 
         let duracion = tiempo_inicial.elapsed();
@@ -326,3 +390,8 @@ fn main() {
         std::thread::sleep(frame_delay);
     }
 }
+
+
+
+
+
