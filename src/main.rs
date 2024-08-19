@@ -1,10 +1,9 @@
-
 mod framebuffer;
 mod maze;
 mod player;
 mod caster;
-mod texture;
-use crate::caster::{cast_ray, Intersect, Orientation}; // Importar Orientation
+
+use crate::caster::cast_ray;
 use gilrs::{Gilrs, Button, Event, EventType, Axis};
 use minifb::{Window, WindowOptions, Key};
 use nalgebra_glm::Vec2;
@@ -13,7 +12,6 @@ use std::time::{Duration, Instant};
 use crate::framebuffer::Framebuffer;
 use crate::maze::load_maze;
 use crate::player::{Player, eventos_jugador};
-use texture::load_texture;
 use rodio::{Decoder,Source, OutputStream, Sink};
 use std::fs::File;
 use std::io::BufReader;
@@ -30,6 +28,7 @@ const FUENTE_NUMEROS: [[u8; 5]; 10] = [
     [0b01110, 0b10001, 0b01110, 0b10001, 0b01110],
     [0b01110, 0b10001, 0b01111, 0b00001, 0b01110],
 ];
+
 
 fn dibujar_digitos(framebuffer: &mut Framebuffer, x: usize, y: usize, digito: u8) {
     if digito > 9 {
@@ -68,14 +67,12 @@ fn dibujar_celdas(
     tamaño_block: usize,
     celda: char,
 ) {
-    // Cambia el color de acuerdo al carácter de la celda
     match celda {
-        'E' => framebuffer.set_current_color(0x00FF00), // Verde para la salida (meta)
-        ' ' => return, // No dibujar nada si es un espacio vacío
-        _   => framebuffer.set_current_color(0x87CEFA), // Azul claro para las paredes normales
+        'E' => framebuffer.set_current_color(0x00FF00), 
+        ' ' => return, 
+        _   => framebuffer.set_current_color(0x87CEFA), 
     }
 
-    // Dibuja la celda
     for x in xo..xo + tamaño_block {
         for y in yo..yo + tamaño_block {
             if x < framebuffer.width && y < framebuffer.height {
@@ -101,15 +98,13 @@ fn render2d(framebuffer: &mut Framebuffer, player: &Player) {
         }
     }
 
-    // Dibujar la posición del jugador en el mapa 2D como un triángulo (flecha)
-    framebuffer.set_current_color(0xFF0000); // Color rojo para la flecha del jugador
+    framebuffer.set_current_color(0xFF0000); 
     let jugador_x = ((player.pos.x / 100.0) * tamaño_block as f32) as isize;
     let jugador_y = ((player.pos.y / 100.0) * tamaño_block as f32) as isize;
 
-    let longitud_flecha = 15.0; // Longitud de la flecha
-    let ancho_flecha = 10.0; // Ancho de la base del triángulo
+    let longitud_flecha = 15.0; 
+    let ancho_flecha = 10.0; 
 
-    // Calcula los tres vértices del triángulo
     let punta_x = (jugador_x as f32 + player.a.cos() * longitud_flecha) as isize;
     let punta_y = (jugador_y as f32 + player.a.sin() * longitud_flecha) as isize;
 
@@ -119,17 +114,15 @@ fn render2d(framebuffer: &mut Framebuffer, player: &Player) {
     let base_x2 = (jugador_x as f32 + player.a.sin() * ancho_flecha / 2.0) as isize;
     let base_y2 = (jugador_y as f32 - player.a.cos() * ancho_flecha / 2.0) as isize;
 
-    // Dibujar el triángulo que representa al jugador
     framebuffer.triangle(punta_x, punta_y, base_x1, base_y1, base_x2, base_y2);
 }
 
 fn render_minimapa(framebuffer: &mut Framebuffer, player: &Player, escala: f32) {
     let maze = load_maze("./maze.txt");
-    let tamaño_block = (20.0 * escala) as usize; // Escala ajustada para el minimapa
+    let tamaño_block = (20.0 * escala) as usize; 
 
-    // Posición del minimapa en la esquina superior derecha
-    let x_offset = framebuffer.width - (maze[0].len() * tamaño_block) - 20; // 20 píxeles de margen derecho
-    let y_offset = 20; // 20 píxeles de margen superior
+    let x_offset = framebuffer.width - (maze[0].len() * tamaño_block) - 20; 
+    let y_offset = 20; 
 
     for row in 0..maze.len() {
         for col in 0..maze[row].len() {
@@ -143,15 +136,13 @@ fn render_minimapa(framebuffer: &mut Framebuffer, player: &Player, escala: f32) 
         }
     }
 
-    // Ajustar las coordenadas del jugador según la escala y la posición del minimapa
-    framebuffer.set_current_color(0xFF0000); // Color rojo para la flecha del jugador en el minimapa
+    framebuffer.set_current_color(0xFF0000); 
     let jugador_x = (x_offset as f32 + ((player.pos.x / 100.0) * tamaño_block as f32)) as isize;
     let jugador_y = (y_offset as f32 + ((player.pos.y / 100.0) * tamaño_block as f32)) as isize;
 
-    let longitud_flecha = 10.0; // Longitud de la flecha en el minimapa
-    let ancho_flecha = 7.0; // Ancho de la base del triángulo en el minimapa
+    let longitud_flecha = 10.0; 
+    let ancho_flecha = 7.0; 
 
-    // Calcula los tres vértices del triángulo
     let punta_x = (jugador_x as f32 + player.a.cos() * longitud_flecha) as isize;
     let punta_y = (jugador_y as f32 + player.a.sin() * longitud_flecha) as isize;
 
@@ -161,29 +152,24 @@ fn render_minimapa(framebuffer: &mut Framebuffer, player: &Player, escala: f32) 
     let base_x2 = (jugador_x as f32 + player.a.sin() * ancho_flecha / 2.0) as isize;
     let base_y2 = (jugador_y as f32 - player.a.cos() * ancho_flecha / 2.0) as isize;
 
-    // Dibujar el triángulo que representa al jugador en el minimapa
     framebuffer.triangle(punta_x, punta_y, base_x1, base_y1, base_x2, base_y2);
 }
 
-
-
-fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &texture::Texture, floor_texture: &texture::Texture) {
+fn render3d(framebuffer: &mut Framebuffer, player: &Player) {
     let maze = load_maze("./maze.txt");
     let tamaño_block = 100;
     let num_rays = framebuffer.width;
 
-    let hw = framebuffer.width as f32 / 2.0;
+
     let hh = framebuffer.height as f32 / 2.0;
 
-    // Dibujar el fondo (cielo) antes de las paredes
-    framebuffer.set_current_color(0x000000); // Color del fondo superior (negro)
-    for y in 0..hh as usize {
+    framebuffer.set_current_color(0xD3D3D3); 
+    for y in hh as usize..framebuffer.height {
         for x in 0..framebuffer.width {
             framebuffer.point(x, y);
         }
     }
 
-    // Renderizar las paredes
     for i in 0..num_rays {
         let ray_actual = i as f32 / num_rays as f32;
         let mut a = player.a - (player.fov / 2.0) + (player.fov * ray_actual);
@@ -192,7 +178,7 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         let interseccion = cast_ray(framebuffer, &maze, &player, a, tamaño_block, false);
 
         let mut distancia_a_pared = interseccion.distance;
-        distancia_a_pared *= (player.a - a).cos(); // Corrección de la distancia
+        distancia_a_pared *= (player.a - a).cos(); 
 
         if distancia_a_pared == 0.0 {
             distancia_a_pared = 0.1; 
@@ -204,54 +190,29 @@ fn render3d(framebuffer: &mut Framebuffer, player: &Player, wall_texture: &textu
         let stake_t = (hh - altura_pared / 2.0) as i32;
         let stake_b = (hh + altura_pared / 2.0) as i32;
 
-        // Suavizar el renderizado con interpolación lineal
-        let line_height = stake_b - stake_t;
-        let texture_step = wall_texture.height as f32 / line_height as f32;
+        let color = match interseccion.impact {
+             '+' => 0xFF6F61,  
+            '-' => 0x6B8E23,  
+            '|' => 0x4682B4,  
+            'E' => 0xFFD700,  
+            _ => 0xFFFFFF,    
+        };
+
+        framebuffer.set_current_color(color);
 
         for y in stake_t.max(0) as usize..stake_b.min(framebuffer.height as i32) as usize {
-            let proporcion_y = (y as f32 - stake_t as f32) * texture_step;
-            let texture_y = proporcion_y as usize % wall_texture.height as usize;
-
-            let texture_x = match interseccion.orientation {
-                Orientation::Vertical => interseccion.point.y as usize % tamaño_block,
-                Orientation::Horizontal => interseccion.point.x as usize % tamaño_block,
-            };
-
-            let pixel_index = texture_y * wall_texture.width as usize + (texture_x % wall_texture.width as usize);
-            let color = wall_texture.get_pixel(pixel_index);
-
-            framebuffer.set_current_color(color);
             framebuffer.point(i, y);
         }
     }
 }
 
-fn mostrar_pantalla_exito(framebuffer: &mut Framebuffer) {
-    framebuffer.clear(); // Limpiar la pantalla
-
-    framebuffer.set_current_color(0x00FF00); // Color verde para la pantalla de éxito
-
-    let mensaje = "¡Has alcanzado la meta!";
-    let x = framebuffer.width / 2 - (mensaje.len() * 6) / 2; // Centrar el mensaje
-    let y = framebuffer.height / 2;
-
-    for (i, ch) in mensaje.chars().enumerate() {
-        // En lugar de intentar convertir el carácter a dígito, simplemente dibuja píxeles para representar letras.
-        let offset_x = x + i * 6;
-        dibujar_letra(framebuffer, offset_x, y, ch);
-    }
-}
 
 fn dibujar_letra(framebuffer: &mut Framebuffer, x: usize, y: usize, letra: char) {
-    // Aquí definirías una fuente básica para las letras. Puedes usar patrones simples
-    // para dibujar cada letra. A continuación, te doy un ejemplo muy básico.
-
     let patrones = match letra {
-        '¡' => [0b00001, 0b00000, 0b00001, 0b00001, 0b00001],  // Ejemplo de "¡"
-        'H' => [0b10001, 0b10001, 0b11111, 0b10001, 0b10001],  // Ejemplo de "H"
-        'a' => [0b01110, 0b00001, 0b01111, 0b10001, 0b01111],  // Ejemplo de "a"
-        // Define los patrones para el resto de las letras...
-        _ => [0b00000, 0b00000, 0b00000, 0b00000, 0b00000],    // Espacio u otros caracteres no definidos
+        'H' => [0b10001, 0b10001, 0b11111, 0b10001, 0b10001],
+        'a' => [0b01110, 0b10001, 0b11111, 0b10001, 0b10001],
+        's' => [0b01111, 0b10000, 0b01110, 0b00001, 0b11110],
+        _ => [0b11111, 0b11111, 0b11111, 0b11111, 0b11111],
     };
 
     for (row, bits) in patrones.iter().enumerate() {
@@ -262,20 +223,33 @@ fn dibujar_letra(framebuffer: &mut Framebuffer, x: usize, y: usize, letra: char)
         }
     }
 }
+
+fn mostrar_pantalla_exito(framebuffer: &mut Framebuffer) {
+    framebuffer.clear(); 
+
+    framebuffer.set_current_color(0x00FF00); 
+
+    let mensaje = "¡HAS ALCANZADO LA META! ¡FELICITACIONES!";
+    let x = framebuffer.width / 2 - (mensaje.len() * 6) / 2; 
+    let y = framebuffer.height / 2;
+
+    for (i, ch) in mensaje.chars().enumerate() {
+        let offset_x = x + i * 6;
+        dibujar_letra(framebuffer, offset_x, y, ch);
+    }
+}
+
 fn main() {
-    // Inicializa el stream de audio
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
 
-    // Carga el archivo de música
     let file = BufReader::new(File::open("assets/Enchanted.wav").unwrap());
     let source = Decoder::new(file).unwrap().repeat_infinite();
 
-    // Reproduce la música en bucle
     sink.append(source);
     sink.play();
 
-    let mut gilrs = Gilrs::new().expect("Failed to initialize gilrs"); // Inicializa Gilrs para manejar el mando
+    let mut gilrs = Gilrs::new().expect("Failed to initialize gilrs");
 
     let ancho_ventana = 1300;
     let altura_ventana = 900;
@@ -293,9 +267,6 @@ fn main() {
         WindowOptions::default(),
     )
     .unwrap();
-
-    let stone_texture = load_texture("assets/paper.jpg").expect("No se pudo cargar la textura de piedra");
-    let floor_texture = load_texture("assets/gris1.jpg").expect("No se pudo cargar la textura del suelo");
 
     framebuffer.set_background_color(0x000000);
 
@@ -315,20 +286,21 @@ fn main() {
         let tiempo_inicial = Instant::now();
         framebuffer.clear();
 
-        if !exito {
-            // Manejar entrada desde el mando
+        if exito {
+            mostrar_pantalla_exito(&mut framebuffer);
+            window.update_with_buffer(&framebuffer.buffer, ancho_framebuffer, altura_framebuffer).unwrap();
+            std::thread::sleep(Duration::from_secs(3));
+            break;
+        } else {
             while let Some(Event { event, .. }) = gilrs.next_event() {
                 match event {
-                    EventType::ButtonPressed(Button::South, _) => {
-                        // Acción del botón (ej: salto, disparo, etc.)
-                    }
+                    EventType::ButtonPressed(Button::South, _) => {}
                     EventType::AxisChanged(Axis::LeftStickX, value, _) => {
-                        // Movimiento horizontal con el stick izquierdo
-                        player.a += value * 0.05; // Ajusta la sensibilidad según sea necesario
+                        player.a += value * 0.05;
                     }
                     EventType::AxisChanged(Axis::LeftStickY, value, _) => {
                         let direction = Vec2::new(player.a.cos(), player.a.sin());
-                        let move_speed = if value > 0.0 { 5.0 } else { -5.0 }; // Cambia según la dirección del eje
+                        let move_speed = if value > 0.0 { 5.0 } else { -5.0 };
                         if player.move_player(direction, move_speed, &maze) {
                             exito = true;
                         }
@@ -337,27 +309,22 @@ fn main() {
                 }
             }
 
-            // Capturar la posición del mouse y rotar la cámara
             if let Some((mouse_x, _)) = window.get_mouse_pos(minifb::MouseMode::Pass) {
-                let sensitivity = 0.005;  // Ajusta la sensibilidad según sea necesario
+                let sensitivity = 0.005;
 
-                // Detectar si el mouse está en la zona sensible izquierda
                 if mouse_x < margen_sensible {
                     player.a -= (margen_sensible - mouse_x) * sensitivity;
                 }
 
-                // Detectar si el mouse está en la zona sensible derecha
                 if mouse_x > (ancho_ventana as f32 - margen_sensible) {
                     player.a += (mouse_x - (ancho_ventana as f32 - margen_sensible)) * sensitivity;
                 }
             }
 
-            // Manejar entrada desde el teclado
             eventos_jugador(&window, &mut player, &maze);
 
-            // Cambiar la vista según el estado actual
             if vista_3d {
-                render3d(&mut framebuffer, &player, &stone_texture, &floor_texture);
+                render3d(&mut framebuffer, &player);
                 if mostrar_minimapa {
                     render_minimapa(&mut framebuffer, &player, 0.2);
                 }
@@ -374,8 +341,6 @@ fn main() {
                 mostrar_minimapa = !mostrar_minimapa;
                 std::thread::sleep(Duration::from_millis(200));
             }
-        } else {
-            mostrar_pantalla_exito(&mut framebuffer);
         }
 
         let duracion = tiempo_inicial.elapsed();
@@ -390,8 +355,3 @@ fn main() {
         std::thread::sleep(frame_delay);
     }
 }
-
-
-
-
-
