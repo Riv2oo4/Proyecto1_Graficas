@@ -24,11 +24,11 @@ Para instalar y ejecutar el proyecto, sigue los siguientes pasos:
 
 1. Clona el repositorio:
     ```bash
-    git clone https://github.com/tu-usuario/nombre-del-repositorio.git
+    git clone https://github.com/Riv2oo4/Proyecto1_Graficas.git
     ```
 2. Navega al directorio del proyecto:
     ```bash
-    cd nombre-del-repositorio
+    cd Proyecto1_Graficas
     ```
 3. Compila el proyecto utilizando Cargo:
     ```bash
