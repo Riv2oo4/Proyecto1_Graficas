@@ -43,7 +43,7 @@ Para instalar y ejecutar el proyecto, sigue los siguientes pasos:
 
 El juego se ejecuta en una ventana que muestra el laberinto en 3D. Utiliza las teclas de dirección para mover al jugador (flechas del teclado o WASD), y el mouse para controlar la cámara, de igual manera está adapatado para usarse con cualquier mando.
 
-Para esconder o mostrar el minimapa se presiona la tecla 'M' del teclado.
+Para esconder o mostrar el minimapa se presiona la tecla 'M' del teclado. 
 Para cambiar entre vista 2D y 3D se presiona la tecla 'Y'
 
 ### Ejemplo de un Laberinto
