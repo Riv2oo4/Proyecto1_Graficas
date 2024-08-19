@@ -1,12 +1,3 @@
-
-use image::GenericImageView;
-
-pub struct Texture {
-    pub width: u32,
-    pub height: u32,
-    pub data: Vec<u8>,
-}
-
 pub struct Framebuffer {
     pub width: usize,
     pub height: usize,
@@ -46,27 +37,6 @@ impl Framebuffer {
         self.current_color = color;
     }
 
-    pub fn line(&mut self, x0: usize, y0: usize, x1: usize, y1: usize) {
-        let dx = (x1 as isize - x0 as isize).abs();
-        let dy = -(y1 as isize - y0 as isize).abs();
-        let sx = if x0 < x1 { 1 } else { -1 };
-        let sy = if y0 < y1 { 1 } else { -1 };
-        let mut err = dx + dy;
-
-        let mut x0 = x0;
-        let mut y0 = y0;
-
-        loop {
-            if x0 < self.width && y0 < self.height {
-                self.point(x0, y0);
-            }
-            if x0 == x1 && y0 == y1 { break; }
-            let e2 = 2 * err;
-            if e2 >= dy { err += dy; x0 = (x0 as isize + sx) as usize; }
-            if e2 <= dx { err += dx; y0 = (y0 as isize + sy) as usize; }
-        }
-    }
-
     pub fn triangle(
         &mut self,
         x1: isize, y1: isize,
@@ -80,7 +50,7 @@ impl Framebuffer {
         let mut x3 = x3 as f32;
         let mut y3 = y3 as f32;
 
-        // Ordena los puntos por su coordenada y (y1 <= y2 <= y3)
+        
         if y1 > y2 { std::mem::swap(&mut x1, &mut x2); std::mem::swap(&mut y1, &mut y2); }
         if y1 > y3 { std::mem::swap(&mut x1, &mut x3); std::mem::swap(&mut y1, &mut y3); }
         if y2 > y3 { std::mem::swap(&mut x2, &mut x3); std::mem::swap(&mut y2, &mut y3); }
@@ -109,15 +79,4 @@ impl Framebuffer {
             }
         }
     }
-}
-
-pub fn load_texture(path: &str) -> Result<Texture, String> {
-    let img = image::open(path).map_err(|_| "Error cargando la textura".to_string())?;
-    let (width, height) = img.dimensions();
-    let texture = Texture {
-        width,
-        height,
-        data: img.to_rgba8().into_raw(),
-    };
-    Ok(texture)
 }
