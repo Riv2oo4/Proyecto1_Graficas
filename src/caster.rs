@@ -5,8 +5,8 @@ use nalgebra_glm::Vec2;
 pub struct Intersect {
     pub distance: f32,
     pub impact: char,
-    pub point: Vec2,
-    pub orientation: Orientation,
+    pub _point: Vec2,
+    pub _orientation: Orientation,
 }
 
 pub enum Orientation {
@@ -39,9 +39,9 @@ pub fn cast_ray(
         if j >= maze.len() || i >= maze[j].len() {
             return Intersect {
                 distance,
-                impact: ' ', // Retorno por defecto si sale fuera del laberinto
-                point: Vec2::new(x as f32, y as f32),
-                orientation: if angle.sin().abs() > angle.cos().abs() {
+                impact: ' ', 
+                _point: Vec2::new(x as f32, y as f32),
+                _orientation: if angle.sin().abs() > angle.cos().abs() {
                     Orientation::Vertical
                 } else {
                     Orientation::Horizontal
@@ -53,8 +53,8 @@ pub fn cast_ray(
             return Intersect {
                 distance,
                 impact: maze[j][i],
-                point: Vec2::new(x as f32, y as f32),
-                orientation: if angle.sin().abs() > angle.cos().abs() {
+                _point: Vec2::new(x as f32, y as f32),
+                _orientation: if angle.sin().abs() > angle.cos().abs() {
                     Orientation::Vertical
                 } else {
                     Orientation::Horizontal
@@ -63,7 +63,6 @@ pub fn cast_ray(
         }
 
         if draw_line {
-            // framebuffer.point(x, y);
         }
 
         distance += STEP_SIZE;
